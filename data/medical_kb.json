@@ -1,0 +1,58 @@
+[
+  {
+    "id": "kb_001",
+    "condition": "Migraine",
+    "source": "MedlinePlus - Migraine Clinical Overview",
+    "symptoms": "throbbing headache on one side of the head, nausea, vomiting, sensitivity to light (photophobia), sensitivity to sound, visual aura",
+    "guidance": "Rest in a quiet, dark room. Stay hydrated and use a cool compress on the forehead. Over-the-counter pain relievers may help if taken early. Consult a doctor if migraines occur frequently or worsen.",
+    "urgency": "Doctor Visit (24-48 hrs)"
+  },
+  {
+    "id": "kb_002",
+    "condition": "Tension Headache",
+    "source": "WHO Neurological Guidelines - Primary Headaches",
+    "symptoms": "dull, aching head pain, tightness or pressure across the forehead or on the sides and back of the head, tenderness in scalp and neck muscles, no nausea or vomiting",
+    "guidance": "Practice stress management, apply a warm heating pad to neck muscles, ensure adequate hydration and sleep, and consider mild analgesics if needed.",
+    "urgency": "Self-Care"
+  },
+  {
+    "id": "kb_003",
+    "condition": "Viral Upper Respiratory Infection (Common Cold)",
+    "source": "CDC Clinical Care Guidance - Acute Respiratory Illnesses",
+    "symptoms": "runny or stuffy nose, sore throat, mild cough, sneezing, mild fatigue, low-grade fever",
+    "guidance": "Get plenty of rest, drink warm fluids, use saline nasal sprays, and gargle with warm salt water for throat relief. Antibiotics are not effective against viral infections.",
+    "urgency": "Self-Care"
+  },
+  {
+    "id": "kb_004",
+    "condition": "Influenza (Flu)",
+    "source": "CDC Seasonal Influenza Clinical Summary",
+    "symptoms": "sudden onset high fever, severe body aches, muscle pain, chills, dry cough, profound fatigue, headache",
+    "guidance": "Isolate to prevent spread, prioritize rest and oral hydration. High-risk individuals or those within 48 hours of symptom onset should consult a physician for antiviral evaluation.",
+    "urgency": "Doctor Visit (24-48 hrs)"
+  },
+  {
+    "id": "kb_005",
+    "condition": "Acute Gastroenteritis",
+    "source": "MedlinePlus - Viral Gastroenteritis",
+    "symptoms": "watery diarrhea, abdominal cramps, nausea, occasional vomiting, low-grade fever after eating or contact with sick individuals",
+    "guidance": "Focus on oral rehydration solutions (ORS) with electrolytes. Eat bland foods (bananas, rice, toast) once vomiting subsides. Seek care if unable to keep liquids down for 24 hours.",
+    "urgency": "Self-Care"
+  },
+  {
+    "id": "kb_006",
+    "condition": "Allergic Rhinitis (Hay Fever)",
+    "source": "MedlinePlus - Allergic Rhinitis Overview",
+    "symptoms": "itchy watery eyes, sneezing fits, clear runny nose, nasal congestion, itchy throat or roof of mouth, triggered by dust, pollen, or pet dander without fever",
+    "guidance": "Minimize exposure to known allergens, use saline nasal rinses, and consider non-drowsy over-the-counter antihistamines or corticosteroid nasal sprays.",
+    "urgency": "Self-Care"
+  },
+  {
+    "id": "kb_007",
+    "condition": "Gastroesophageal Reflux Disease (GERD / Acid Reflux)",
+    "source": "NIDDK - Acid Reflux & GERD Clinical Guide",
+    "symptoms": "burning sensation in the upper stomach or lower chest after eating (heartburn), sour taste in mouth, regurgitation of food or liquid, worse when lying down",
+    "guidance": "Avoid spicy, fatty, or acidic meals late at night, eat smaller portions, elevate the head of your bed, and consider antacids. See a doctor if symptoms occur more than twice a week.",
+    "urgency": "Doctor Visit (24-48 hrs)"
+  }
+]
