@@ -1,12 +1,16 @@
 import streamlit as st
-import requests
-import os
-
-API_URL = os.getenv("BACKEND_URL", "http://127.0.0.1:8000")
+from app.guardrails import check_red_flags
+from app.rag_engine import MedicalRAGEngine
 
 st.set_page_config(
     page_title="AI Health Triage Assistant", page_icon="🩺", layout="centered"
 )
+
+@st.cache_resource
+def load_engine():
+    return MedicalRAGEngine()
+
+rag_engine = load_engine()
 
 st.title("🩺 AI Health Symptom Checker")
 st.caption(
@@ -34,55 +38,43 @@ if submitted:
     else:
         with st.spinner("Checking clinical guidelines and safety guardrails..."):
             try:
-                res = requests.post(
-                    f"{API_URL}/triage",
-                    json={
-                        "symptoms_text": symptoms,
-                        "age": age,
-                        "duration_days": duration,
-                    },
-                    timeout=30,
-                )
-                if res.status_code != 200:
-                    st.error(f"Backend error ({res.status_code}): {res.text}")
+                is_emergency, reason = check_red_flags(symptoms)
+
+                if is_emergency:
+                    st.error("🚨 **Emergency (Call Ambulance / ER)**")
+                    st.markdown(f"**Trigger Reason:** {reason}")
+                    st.markdown(
+                        "**Immediate Action:** Seek immediate emergency medical care or call local emergency services right away. Do not drive yourself."
+                    )
                 else:
-                    data = res.json()
+                    result = rag_engine.generate_triage(
+                        symptoms_text=symptoms,
+                        age=age,
+                        duration_days=duration,
+                    )
 
-                    if data["is_emergency"]:
-                        st.error(f"🚨 **{data['urgency_level']}**")
-                        st.markdown(f"**Trigger Reason:** {data['emergency_reason']}")
-                        st.markdown(
-                            f"**Immediate Action:** {data['recommended_next_steps']}"
-                        )
+                    if "Doctor" in result.urgency_level:
+                        st.warning(f"⚠️ **Recommended Triage:** {result.urgency_level}")
                     else:
-                        if "Doctor" in data["urgency_level"]:
-                            st.warning(
-                                f"⚠️ **Recommended Triage:** {data['urgency_level']}"
-                            )
-                        else:
-                            st.success(
-                                f"✅ **Recommended Triage:** {data['urgency_level']}"
-                            )
+                        st.success(f"✅ **Recommended Triage:** {result.urgency_level}")
 
-                        st.subheader("Possible Matching Conditions")
-                        for cond in data["possible_conditions"]:
-                            with st.expander(f"📌 {cond['condition']}", expanded=True):
-                                st.write(
-                                    f"**Clinical Reasoning:** {cond['reasoning']}"
-                                )
-                                st.caption(
-                                    f"**Verified Source:** {cond['source_citation']}"
-                                )
+                    st.subheader("Possible Matching Conditions")
+                    for cond in result.possible_conditions:
+                        with st.expander(f"📌 {cond.condition}", expanded=True):
+                            st.write(f"**Clinical Reasoning:** {cond.reasoning}")
+                            st.caption(f"**Verified Source:** {cond.source_citation}")
 
-                        st.subheader("Recommended Next Steps")
-                        st.write(data["recommended_next_steps"])
+                    st.subheader("Recommended Next Steps")
+                    st.write(result.recommended_next_steps)
 
-                        if data["follow_up_questions"]:
-                            st.subheader("Clarifying Questions for Your Doctor")
-                            for q in data["follow_up_questions"]:
-                                st.markdown(f"- {q}")
+                    if result.follow_up_questions:
+                        st.subheader("Clarifying Questions for Your Doctor")
+                        for q in result.follow_up_questions:
+                            st.markdown(f"- {q}")
 
-                    st.divider()
-                    st.caption(data["medical_disclaimer"])
+                st.divider()
+                st.caption(
+                    "DISCLAIMER: This tool is for educational triage support only and is NOT a medical diagnosis. Always consult a licensed healthcare professional."
+                )
             except Exception as e:
-                st.error(f"Could not connect to backend API: {e}")
+                st.error(f"Error analyzing symptoms: {e}")
