@@ -18,9 +18,8 @@ class MedicalRAGEngine:
             )
 
         self.groq_client = Groq(api_key=api_key)
-        self.model_name = "llama-3.3-70b-versatile"
+        self.model_name = "llama-3.1-8b-instant"
 
-        # Ephemeral in-memory vector store using ChromaDB's lightweight built-in ONNX embedder
         self.chroma_client = chromadb.Client()
         self.collection = self.chroma_client.get_or_create_collection(
             name="clinical_guidelines"

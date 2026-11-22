@@ -12,7 +12,7 @@ if "GROQ_API_KEY" in st.secrets:
 
 
 @st.cache_resource
-def load_engine():
+def load_engine_v2():
     return MedicalRAGEngine()
 
 
@@ -51,7 +51,7 @@ if submitted:
                         "**Immediate Action:** Seek immediate emergency medical care or call local emergency services right away. Do not drive yourself."
                     )
                 else:
-                    rag_engine = load_engine()
+                    rag_engine = load_engine_v2()
                     result = rag_engine.generate_triage(
                         symptoms_text=symptoms,
                         age=age,
