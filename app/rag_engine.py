@@ -20,7 +20,7 @@ class MedicalRAGEngine:
         self.groq_client = Groq(api_key=api_key)
         self.model_name = "llama-3.3-70b-versatile"
 
-        # Ephemeral in-memory vector store using ChromaDB's fast built-in ONNX embedder
+        # Ephemeral in-memory vector store using ChromaDB's lightweight built-in ONNX embedder
         self.chroma_client = chromadb.Client()
         self.collection = self.chroma_client.get_or_create_collection(
             name="clinical_guidelines"
@@ -43,23 +43,29 @@ class MedicalRAGEngine:
         metadatas = []
         ids = []
 
-        for item in records:
+        for idx, item in enumerate(records):
+            symptoms_list = item.get("symptoms", [])
+            symptoms_str = (
+                ", ".join(symptoms_list)
+                if isinstance(symptoms_list, list)
+                else str(symptoms_list)
+            )
             text_chunk = (
-                f"Condition: {item['condition']}\n"
-                f"Symptoms: {', '.join(item['symptoms'])}\n"
-                f"Risk Factors: {item['risk_factors']}\n"
-                f"Clinical Guidance: {item['guidance']}\n"
-                f"Default Urgency: {item['urgency']}"
+                f"Condition: {item.get('condition', 'Unknown')}\n"
+                f"Symptoms: {symptoms_str}\n"
+                f"Risk Factors: {item.get('risk_factors', 'General population')}\n"
+                f"Clinical Guidance: {item.get('guidance', item.get('description', ''))}\n"
+                f"Default Urgency: {item.get('urgency', 'Doctor Visit (24-48 hrs)')}"
             )
             documents.append(text_chunk)
             metadatas.append(
                 {
-                    "condition": item["condition"],
-                    "source": item["source"],
-                    "urgency": item["urgency"],
+                    "condition": item.get("condition", "Unknown"),
+                    "source": item.get("source", "Verified Medical Guidelines"),
+                    "urgency": item.get("urgency", "Doctor Visit (24-48 hrs)"),
                 }
             )
-            ids.append(item["id"])
+            ids.append(str(item.get("id", f"doc_{idx}")))
 
         self.collection.add(
             documents=documents,
@@ -73,7 +79,7 @@ class MedicalRAGEngine:
         context_blocks = []
         for idx, doc in enumerate(results["documents"][0]):
             source = results["metadatas"][0][idx]["source"]
-            context_blocks.append(f"[Source: {source}]\n{doc}")
+            context_blocks.append(f"\n{doc}")
 
         return "\n\n---\n\n".join(context_blocks)
 
