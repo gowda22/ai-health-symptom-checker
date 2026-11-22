@@ -1,7 +1,7 @@
 import json
 import os
+from pathlib import Path
 import chromadb
-from chromadb.utils import embedding_functions
 from groq import Groq
 from dotenv import load_dotenv
 from app.schemas import TriageResponse
@@ -11,85 +11,116 @@ load_dotenv()
 
 class MedicalRAGEngine:
     def __init__(self, kb_path: str = "data/medical_kb.json"):
-        self.client = chromadb.PersistentClient(path="./chroma_db")
-        self.embed_fn = embedding_functions.SentenceTransformerEmbeddingFunction(
-            model_name="all-MiniLM-L6-v2"
-        )
-        self.collection = self.client.get_or_create_collection(
-            name="medical_guidelines",
-            embedding_function=self.embed_fn,
-        )
-        self._load_knowledge_base(kb_path)
         api_key = os.getenv("GROQ_API_KEY")
-        self.groq_client = Groq(api_key=api_key) if api_key else None
+        if not api_key:
+            raise ValueError(
+                "GROQ_API_KEY is missing. Add it to .env locally or Streamlit Secrets in the cloud."
+            )
 
-    def _load_knowledge_base(self, kb_path: str):
+        self.groq_client = Groq(api_key=api_key)
+        self.model_name = "llama-3.3-70b-versatile"
+
+        # Ephemeral in-memory vector store using ChromaDB's fast built-in ONNX embedder
+        self.chroma_client = chromadb.Client()
+        self.collection = self.chroma_client.get_or_create_collection(
+            name="clinical_guidelines"
+        )
+
+        self._ingest_knowledge_base(kb_path)
+
+    def _ingest_knowledge_base(self, kb_path: str):
         if self.collection.count() > 0:
             return
-        with open(kb_path, "r", encoding="utf-8") as f:
+
+        file_path = Path(kb_path)
+        if not file_path.exists():
+            raise FileNotFoundError(f"Knowledge base not found at {kb_path}")
+
+        with open(file_path, "r", encoding="utf-8") as f:
             records = json.load(f)
 
-        documents, metadatas, ids = [], [], []
+        documents = []
+        metadatas = []
+        ids = []
+
         for item in records:
-            doc_text = (
-                f"Condition: {item['condition']}. "
-                f"Symptoms: {item['symptoms']}. "
-                f"Clinical Guidance: {item['guidance']}. "
-                f"Standard Urgency: {item['urgency']}."
+            text_chunk = (
+                f"Condition: {item['condition']}\n"
+                f"Symptoms: {', '.join(item['symptoms'])}\n"
+                f"Risk Factors: {item['risk_factors']}\n"
+                f"Clinical Guidance: {item['guidance']}\n"
+                f"Default Urgency: {item['urgency']}"
             )
-            documents.append(doc_text)
-            metadatas.append({"condition": item["condition"], "source": item["source"]})
+            documents.append(text_chunk)
+            metadatas.append(
+                {
+                    "condition": item["condition"],
+                    "source": item["source"],
+                    "urgency": item["urgency"],
+                }
+            )
             ids.append(item["id"])
 
-        self.collection.add(documents=documents, metadatas=metadatas, ids=ids)
+        self.collection.add(
+            documents=documents,
+            metadatas=metadatas,
+            ids=ids,
+        )
 
     def retrieve_context(self, query: str, top_k: int = 3) -> str:
         results = self.collection.query(query_texts=[query], n_results=top_k)
+
         context_blocks = []
-        for doc, meta in zip(results["documents"][0], results["metadatas"][0]):
-            context_blocks.append(f"[Source: {meta['source']}]\n{doc}")
-        return "\n\n".join(context_blocks)
+        for idx, doc in enumerate(results["documents"][0]):
+            source = results["metadatas"][0][idx]["source"]
+            context_blocks.append(f"[Source: {source}]\n{doc}")
+
+        return "\n\n---\n\n".join(context_blocks)
 
     def generate_triage(
-        self, symptoms_text: str, age: int, duration_days: int
+        self, symptoms_text: str, age: int = None, duration_days: int = None
     ) -> TriageResponse:
-        if not self.groq_client:
-            raise ValueError(
-                "GROQ_API_KEY is missing. Copy .env.example to .env and add your Groq API key."
-            )
+        retrieved_context = self.retrieve_context(symptoms_text, top_k=3)
 
-        retrieved_docs = self.retrieve_context(symptoms_text)
+        patient_meta = []
+        if age:
+            patient_meta.append(f"Age: {age}")
+        if duration_days:
+            patient_meta.append(f"Duration: {duration_days} days")
+        meta_str = ", ".join(patient_meta) if patient_meta else "Not provided"
 
-        system_prompt = """
-        You are a clinical triage assistant. Answer STRICTLY using ONLY the provided medical context below.
-        Do NOT invent conditions or treatments outside the provided context.
-        Return valid JSON matching this exact schema:
-        {
-          "is_emergency": false,
-          "urgency_level": "Doctor Visit (24-48 hrs)" or "Self-Care",
-          "emergency_reason": null,
-          "possible_conditions": [
-            {
-              "condition": "Name from context",
-              "reasoning": "Why user symptoms match",
-              "source_citation": "Exact Source from context"
-            }
-          ],
-          "recommended_next_steps": "Actionable advice strictly from context",
-          "follow_up_questions": ["Question 1 to clarify symptoms", "Question 2"]
-        }
-        """
+        system_prompt = (
+            "You are a cautious, evidence-based clinical triage assistant. "
+            "Analyze the patient's symptoms STRICTLY using the provided Verified Medical Context. "
+            "Do NOT invent diseases or treatments outside the provided context. "
+            "Always cite the exact source provided in the context for each condition. "
+            "Return ONLY valid JSON matching the exact schema requested."
+        )
 
         user_prompt = f"""
-        Patient Info: Age {age}, Duration: {duration_days} days.
-        Reported Symptoms: {symptoms_text}
+Patient Info: {meta_str}
+Reported Symptoms: {symptoms_text}
 
-        Retrieved Medical Context:
-        {retrieved_docs}
-        """
+Verified Medical Context:
+{retrieved_context}
+
+Respond in valid JSON matching this structure:
+{{
+  "urgency_level": "Doctor Visit (24-48 hrs)" or "Self-Care",
+  "possible_conditions": [
+    {{
+      "condition": "Name from context",
+      "reasoning": "Why symptoms match the context",
+      "source_citation": "Exact source name from context"
+    }}
+  ],
+  "recommended_next_steps": "Clear, safe next steps based on context",
+  "follow_up_questions": ["Question 1", "Question 2"]
+}}
+"""
 
         completion = self.groq_client.chat.completions.create(
-            model="openai/gpt-oss-120b",
+            model=self.model_name,
             messages=[
                 {"role": "system", "content": system_prompt},
                 {"role": "user", "content": user_prompt},
@@ -99,5 +130,4 @@ class MedicalRAGEngine:
         )
 
         raw_json = completion.choices[0].message.content
-        parsed = json.loads(raw_json)
-        return TriageResponse(**parsed)
+        return TriageResponse.model_validate_json(raw_json)
